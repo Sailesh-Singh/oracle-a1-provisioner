@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+.oci/
+*.pem
+*.key
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
