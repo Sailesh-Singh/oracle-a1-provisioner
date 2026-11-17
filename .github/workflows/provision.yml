@@ -1,3 +1,4 @@
+
 name: Oracle A1 Self Provisioner
 
 on:
@@ -22,11 +23,11 @@ jobs:
       OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
       OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
       OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
-      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
       OCI_CLI_REGION: ap-mumbai-1
       OCI_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_ID }}
       OCI_SUBNET_ID: ${{ secrets.OCI_SUBNET_ID }}
       OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+      OCI_ASSIGN_PUBLIC_IP: ${{ vars.OCI_ASSIGN_PUBLIC_IP }}
 
     steps:
       - name: Checkout repository
@@ -37,18 +38,78 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Install OCI CLI and jq
+      - name: Install OCI CLI and dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install oci-cli
+          python -m pip install --upgrade "pip==25.0.1"
+          python -m pip install "oci-cli==3.70.0"
           sudo apt-get update
           sudo apt-get install -y jq
+
+      - name: Configure OCI credentials
+        shell: bash
+        env:
+          OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+        run: |
+          set -euo pipefail
+
+          for name in OCI_CLI_USER OCI_CLI_TENANCY OCI_CLI_FINGERPRINT OCI_CLI_KEY_CONTENT; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::$name is missing."
+              exit 1
+            fi
+          done
+
+          if [[ ! "$OCI_CLI_USER" =~ ^ocid1\.user\.oc1\..+ ]]; then
+            echo "::error::Invalid OCI User OCID format."
+            exit 1
+          fi
+
+          if [[ ! "$OCI_CLI_TENANCY" =~ ^ocid1\.tenancy\.oc1\..+ ]]; then
+            echo "::error::Invalid OCI Tenancy OCID format."
+            exit 1
+          fi
+
+          if [[ ! "$OCI_CLI_FINGERPRINT" =~ ^([[:xdigit:]]{2}:){15}[[:xdigit:]]{2}$ ]]; then
+            echo "::error::Invalid OCI fingerprint format."
+            exit 1
+          fi
+
+          umask 077
+          mkdir -p "$HOME/.oci"
+          chmod 700 "$HOME/.oci"
+
+          printf '%s\n' "$OCI_CLI_KEY_CONTENT" > "$HOME/.oci/oci_api_key.pem"
+          chmod 600 "$HOME/.oci/oci_api_key.pem"
+
+          openssl pkey -in "$HOME/.oci/oci_api_key.pem" -noout
+
+          cat > "$HOME/.oci/config" <<EOF
+          [DEFAULT]
+          user=$OCI_CLI_USER
+          fingerprint=$OCI_CLI_FINGERPRINT
+          tenancy=$OCI_CLI_TENANCY
+          region=$OCI_CLI_REGION
+          key_file=$HOME/.oci/oci_api_key.pem
+          EOF
+
+          chmod 600 "$HOME/.oci/config"
+
+          echo "OCI configuration created successfully."
 
       - name: Verify OCI authentication
         run: |
           oci iam region list \
+            --region "$OCI_CLI_REGION" \
             --query 'data[?name==`ap-mumbai-1`].name' \
             --raw-output
+
+      - name: Validate provisioning configuration
+        run: |
+          test -n "$OCI_COMPARTMENT_ID"
+          test -n "$OCI_SUBNET_ID"
+          test -n "$OCI_SSH_PUBLIC_KEY"
+          test -f cloud-init/ubuntu.yaml
+          test -f scripts/provision.sh
 
       - name: Provision Oracle A1
         run: bash scripts/provision.sh
