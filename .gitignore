@@ -1,10 +1,29 @@
+
+# Environment files
 .env
 .env.*
 !.env.example
+
+# OCI credentials
 .oci/
 *.pem
 *.key
+
+# SSH private keys
+id_rsa
+id_ed25519
+id_ecdsa
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS
 .DS_Store
 Thumbs.db
+
+# Editors
 .vscode/
 .idea/
