@@ -1,0 +1,54 @@
+name: Oracle A1 Self Provisioner
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oracle-a1-provisioner
+  cancel-in-progress: false
+
+jobs:
+  provision:
+    name: Provision Oracle A1
+    runs-on: ubuntu-latest
+
+    env:
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_CLI_REGION: ap-mumbai-1
+      OCI_COMPARTMENT_ID: ${{ secrets.OCI_COMPARTMENT_ID }}
+      OCI_SUBNET_ID: ${{ secrets.OCI_SUBNET_ID }}
+      OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install OCI CLI and jq
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install oci-cli
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Verify OCI authentication
+        run: |
+          oci iam region list \
+            --query 'data[?name==`ap-mumbai-1`].name' \
+            --raw-output
+
+      - name: Provision Oracle A1
+        run: bash scripts/provision.sh
