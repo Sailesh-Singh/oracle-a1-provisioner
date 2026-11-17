@@ -36,11 +36,13 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.x"
+          python-version: "3.12"
+          cache: "pip"
 
       - name: Install OCI CLI and dependencies
         run: |
-          python -m pip install --upgrade "pip==25.0.1"
+          python --version
+          python -m pip install --upgrade pip
           python -m pip install "oci-cli==3.70.0"
           sudo apt-get update
           sudo apt-get install -y jq

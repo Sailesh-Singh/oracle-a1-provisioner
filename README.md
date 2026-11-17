@@ -115,11 +115,8 @@ Create the following repository secrets:
 | `OCI_COMPARTMENT_ID` | Root compartment OCID |
 | `OCI_SUBNET_ID` | Public subnet OCID |
 | `OCI_SSH_PUBLIC_KEY` | SSH public key |
-| `OCI_ASSIGN_PUBLIC_IP` | Repository variable; set to `true` only when public access is required |
 
 Never commit private keys, credentials, or `.env` files.
-
-Before provisioning, edit `cloud-init/ubuntu.yaml` and replace `REPLACE_WITH_TRUSTED_CIDR` with your administrator's public IP in `/32` form. HTTP and HTTPS remain closed unless `PUBLIC_WEB_ACCESS=true` is configured in that file.
 
 ## GitHub Actions
 
