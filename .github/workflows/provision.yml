@@ -18,6 +18,7 @@ jobs:
   provision:
     name: Provision Oracle A1
     runs-on: ubuntu-latest
+    environment: oci_env
 
     env:
       OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
