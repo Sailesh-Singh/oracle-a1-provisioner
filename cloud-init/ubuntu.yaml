@@ -1,3 +1,4 @@
+
 #cloud-config
 
 package_update: true
@@ -16,8 +17,10 @@ packages:
   - lsb-release
   - ufw
   - fail2ban
+  - unattended-upgrades
 
 write_files:
+
   - path: /etc/apt/apt.conf.d/20auto-upgrades
     permissions: "0644"
     content: |
@@ -34,26 +37,75 @@ write_files:
       findtime = 10m
       bantime = 1h
 
+  - path: /etc/default/oracle-a1
+    permissions: "0644"
+    content: |
+      # Replace with a trusted administrator CIDR before provisioning.
+      SSH_ALLOWED_CIDR=REPLACE_WITH_TRUSTED_CIDR
+      PUBLIC_WEB_ACCESS=false
+
 runcmd:
+
+  # Docker repository
   - install -m 0755 -d /etc/apt/keyrings
-  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+
+  - curl --fail --silent --show-error --location https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker.asc
+
+  - |
+    test "$(gpg --show-keys --with-colons /tmp/docker.asc | awk -F: '$1 == "fpr" { print $10; exit }')" = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
+
+  - install -m 0644 /tmp/docker.asc /etc/apt/keyrings/docker.asc
+  - rm -f /tmp/docker.asc
   - chmod a+r /etc/apt/keyrings/docker.asc
+
   - |
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+
+  # Install Docker
   - apt-get update
+
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
   - systemctl enable docker
+
   - systemctl start docker
-  - usermod -aG docker ubuntu
+
+  # Firewall
   - ufw default deny incoming
+
   - ufw default allow outgoing
-  - ufw allow 22/tcp
-  - ufw allow 80/tcp
-  - ufw allow 443/tcp
+
+  - |
+    . /etc/default/oracle-a1
+    if [ "$SSH_ALLOWED_CIDR" != "REPLACE_WITH_TRUSTED_CIDR" ] && [ -n "$SSH_ALLOWED_CIDR" ]; then
+      ufw allow from "$SSH_ALLOWED_CIDR" to any port 22 proto tcp
+    fi
+    if [ "$PUBLIC_WEB_ACCESS" = "true" ]; then
+      ufw allow 80/tcp
+      ufw allow 443/tcp
+    fi
+
   - ufw --force enable
+
+  # Fail2ban
   - systemctl enable fail2ban
+
   - systemctl restart fail2ban
+
+  # Application directories
   - mkdir -p /opt/apps /opt/backups /opt/nginx
+
   - chown -R ubuntu:ubuntu /opt/apps /opt/backups /opt/nginx
+
+  # MOTD
+  - |
+    cat > /etc/motd <<'EOF'
+    ========================================
+       Oracle Cloud A1 Server
+       Ubuntu 24.04 ARM64
+       Docker Enabled
+       Managed by cloud-init
+    ========================================
+    EOF
 
 final_message: "Oracle A1 bootstrap completed."
